@@ -48,21 +48,44 @@ Generates copy for one planned entry and moves it to `generated`.
 
 ## Run locally
 
+Install and run the backend:
+
 ```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Then open the basic functional UI at:
+In a second terminal, install and run the React frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the React UI at:
 
 ```text
-http://127.0.0.1:8000/
+http://127.0.0.1:5173/
 ```
 
 Swagger remains available at:
 
 ```text
 http://127.0.0.1:8000/docs
+```
+
+For production-style serving through FastAPI, build the React app first:
+
+```bash
+cd frontend
+npm run build
+```
+
+Then start the backend and open:
+
+```text
+http://127.0.0.1:8000/
 ```
 
 ## Test
