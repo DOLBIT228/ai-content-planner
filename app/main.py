@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Response, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException, Response, status
 
 from .repository import InMemoryRepository, NotFoundError
@@ -7,8 +12,19 @@ from .schemas import CampaignCreate, RegenerateRequest, serialize
 from .services import ContentOSService
 
 app = FastAPI(title="AI Content OS", version="0.1.0")
+FRONTEND_DIST = Path("frontend/dist")
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 repo = InMemoryRepository()
 service = ContentOSService(repo)
+
+
+@app.get("/", include_in_schema=False)
+def frontend():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return FileResponse(index)
+    return {"message": "Run the React app with `cd frontend && npm install && npm run dev`, then open http://127.0.0.1:5173/."}
 
 
 def not_found(exc: NotFoundError) -> HTTPException:
