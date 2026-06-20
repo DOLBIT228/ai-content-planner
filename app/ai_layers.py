@@ -5,9 +5,14 @@ import os
 import urllib.error
 import urllib.request
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Iterable
 
+from dotenv import load_dotenv
+
 from .models import Campaign, CampaignChannel, ContentEntry, ContentFormat, ContentGoal, EntryStatus
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DEFAULT_MODEL = "openai/gpt-4.1-mini"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

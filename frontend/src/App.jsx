@@ -24,13 +24,35 @@ async function api(path, options = {}) {
   const headers = options.rawBody ? options.headers || {} : { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const { rawBody, ...fetchOptions } = options;
   const response = await fetch(path, { headers, ...fetchOptions });
-  if (response.status === 204) return null;
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || JSON.stringify(data));
-  return data;
+  const text = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+  let data = text;
+  if (text && contentType.includes('application/json')) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!response.ok) {
+    const message = typeof data === 'object' && data?.detail ? data.detail : text || response.statusText;
+    throw new Error(message);
+  }
+  return data || null;
 }
 
 const toNumber = (value) => Number(value || 0);
+const validateCampaign = (form, salesPercentage) => {
+  if (!form.title.trim()) return 'Вкажіть назву кампанії.';
+  if (!form.brief.trim()) return 'Додайте короткий опис або промт для моделі.';
+  if (!form.start_date || !form.end_date) return 'Оберіть дату початку та завершення кампанії.';
+  if (form.end_date < form.start_date) return 'Дата завершення має бути не раніше дати початку.';
+  const totalFormats = toNumber(form.post_count) + toNumber(form.carousel_count) + toNumber(form.reel_count) + toNumber(form.stories_count);
+  if (totalFormats <= 0) return 'Додайте хоча б одну одиницю контенту.';
+  const imagePercentage = toNumber(form.image_percentage);
+  if (imagePercentage < 0 || imagePercentage > 100 || salesPercentage < 0 || salesPercentage > 100) return 'Баланс контенту має бути в межах 0–100%.';
+  return '';
+};
 const formatLabels = { post_count: 'Posts', carousel_count: 'Carousels', reel_count: 'Reels', stories_count: 'Stories' };
 
 export default function App() {
@@ -44,6 +66,7 @@ export default function App() {
 
   const salesPercentage = 100 - toNumber(form.image_percentage);
   const selectedFormats = useMemo(() => CHANNEL_FORMATS[form.channel_name] || CHANNEL_FORMATS.Instagram, [form.channel_name]);
+  const validationMessage = validateCampaign(form, salesPercentage);
 
   const run = async (task) => {
     try { await task(); } catch (error) { setNotice(`Помилка: ${error.message}`); }
@@ -76,6 +99,10 @@ export default function App() {
   };
 
   const createAndGenerateCampaign = async () => {
+    if (validationMessage) {
+      setNotice(`Помилка: ${validationMessage}`);
+      return;
+    }
     setIsGenerating(true);
     try {
       const payload = {
@@ -125,7 +152,8 @@ export default function App() {
           <div className="format-help"><strong>Доступні формати:</strong> {selectedFormats.join(', ')}</div>
           <div className="format-grid">{Object.entries(formatLabels).map(([field, label]) => <label key={field}>{label}<input type="number" min="0" value={form[field]} onChange={(event) => updateField(field, event.target.value)} /></label>)}</div>
           <label>Баланс контенту: {form.image_percentage}% імідж / {salesPercentage}% продаж<input type="range" min="0" max="100" value={form.image_percentage} onChange={(event) => updateField('image_percentage', event.target.value)} /></label>
-          <button className="primary" disabled={isGenerating} onClick={() => run(createAndGenerateCampaign)}>{isGenerating ? 'Генеруємо через AI…' : 'Створити кампанію'}</button>
+          {validationMessage && <p className="validation-message">{validationMessage}</p>}
+          <button className="primary" disabled={isGenerating || Boolean(validationMessage)} onClick={() => run(createAndGenerateCampaign)}>{isGenerating ? 'Генеруємо через AI…' : 'Створити кампанію'}</button>
         </div>
         <aside className="knowledge-card">
           <p className="eyebrow">База знань</p>
