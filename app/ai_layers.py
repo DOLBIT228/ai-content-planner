@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.error
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
+import certifi
 from dotenv import load_dotenv
 
 from .models import Campaign, CampaignChannel, ContentEntry, ContentFormat, ContentGoal, EntryStatus
@@ -60,8 +62,9 @@ class OpenRouterClient:
             },
             method="POST",
         )
+        context = ssl.create_default_context(cafile=certifi.where())
         try:
-            with urllib.request.urlopen(request, timeout=90) as response:
+            with urllib.request.urlopen(request, timeout=90, context=context) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
