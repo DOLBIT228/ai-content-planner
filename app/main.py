@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, HTTPException, Response, status
 
 from .repository import InMemoryRepository, NotFoundError
+from .ai_layers import AIConfigurationError, AIResponseError
 from .schemas import CampaignCreate, RegenerateRequest, serialize
 from .services import ContentOSService
 
@@ -54,6 +54,28 @@ def get_campaign(campaign_id: int):
     return serialize({"campaign": campaign, "channels": repo.list_channels(campaign_id), "entries": repo.list_entries(campaign_id)})
 
 
+@app.get("/knowledge-documents")
+def list_knowledge_documents():
+    return serialize(repo.list_documents())
+
+
+@app.post("/knowledge-documents", status_code=status.HTTP_201_CREATED)
+async def upload_knowledge_document(request: Request, filename: str = "knowledge-file", content_type: str | None = Header(default=None)):
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=422, detail="Uploaded file is empty")
+    return serialize(service.add_knowledge_document(filename, content_type or "application/octet-stream", data))
+
+
+@app.delete("/knowledge-documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_knowledge_document(document_id: int):
+    try:
+        repo.delete_document(document_id)
+    except NotFoundError as exc:
+        raise not_found(exc)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_campaign(campaign_id: int):
     try:
@@ -69,6 +91,10 @@ def generate_plan(campaign_id: int):
         return serialize(service.generate_plan(campaign_id))
     except NotFoundError as exc:
         raise not_found(exc)
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except AIResponseError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.post("/content-entries/{entry_id}/generate")
@@ -77,6 +103,10 @@ def generate_entry(entry_id: int):
         return serialize(service.generate_entry(entry_id))
     except NotFoundError as exc:
         raise not_found(exc)
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except AIResponseError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.post("/content-entries/{entry_id}/regenerate")
@@ -85,6 +115,10 @@ def regenerate_entry(entry_id: int, payload: RegenerateRequest):
         return serialize(service.regenerate_entry(entry_id, payload.feedback))
     except NotFoundError as exc:
         raise not_found(exc)
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except AIResponseError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.post("/content-entries/{entry_id}/approve")
