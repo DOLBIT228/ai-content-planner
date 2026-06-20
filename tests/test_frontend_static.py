@@ -8,11 +8,11 @@ class FrontendReactTest(unittest.TestCase):
         package = Path("frontend/package.json").read_text()
         vite = Path("frontend/vite.config.js").read_text()
 
-        self.assertIn("Campaign → Plan → Generate → Review", app)
-        self.assertIn("Create campaign", app)
-        self.assertIn("Generate plan", app)
-        self.assertIn("Regenerate", app)
-        self.assertIn("/content-entries/${entryId}/approve", app)
+        self.assertIn("AI Content Planner", app)
+        self.assertIn("Створити кампанію", app)
+        self.assertIn("База знань", app)
+        self.assertIn("openai/gpt-4.1-mini", app)
+        self.assertIn("/knowledge-documents", app)
         self.assertIn('"react"', package)
         self.assertIn("proxy", vite)
 

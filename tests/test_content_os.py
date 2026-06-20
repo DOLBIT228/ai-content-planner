@@ -1,6 +1,7 @@
 from datetime import date
 import unittest
 
+from app.ai_layers import DeterministicAIClient
 from app.models import EntryStatus
 from app.repository import InMemoryRepository
 from app.schemas import CampaignCreate, ChannelCreate
@@ -10,7 +11,7 @@ from app.services import ContentOSService
 class ContentOSTest(unittest.TestCase):
     def setUp(self):
         self.repo = InMemoryRepository()
-        self.service = ContentOSService(self.repo)
+        self.service = ContentOSService(self.repo, DeterministicAIClient())
         self.campaign = self.service.create_campaign(CampaignCreate(
             title="Luxury launch",
             start_date=date(2026, 7, 1),
@@ -21,11 +22,11 @@ class ContentOSTest(unittest.TestCase):
             channels=[ChannelCreate(channel_name="Instagram", post_count=1, carousel_count=1, reel_count=1, stories_count=1)],
         ))
 
-    def test_planning_creates_drafts_without_post_text(self):
+    def test_planning_creates_generated_entries_with_post_text(self):
         entries = self.service.generate_plan(self.campaign.id)
         self.assertEqual(len(entries), 4)
-        self.assertTrue(all(entry.status == EntryStatus.DRAFT for entry in entries))
-        self.assertTrue(all(entry.post_text is None for entry in entries))
+        self.assertTrue(all(entry.status == EntryStatus.GENERATED for entry in entries))
+        self.assertTrue(all(entry.post_text for entry in entries))
 
     def test_generate_then_review_feedback_flow(self):
         entry = self.service.generate_plan(self.campaign.id)[0]

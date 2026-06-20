@@ -82,3 +82,12 @@ class ContentEntry:
     feedback: Optional[str] = None
     id: int = 0
     created_at: datetime = field(default_factory=utcnow)
+
+
+@dataclass(slots=True)
+class KnowledgeDocument:
+    filename: str
+    content_type: str
+    text: str
+    id: int = 0
+    created_at: datetime = field(default_factory=utcnow)

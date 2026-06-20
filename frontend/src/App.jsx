@@ -1,213 +1,146 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const CHANNEL_FORMATS = {
+  Instagram: ['Reels', 'Stories', 'Posts', 'Carousels'],
+  TikTok: ['Videos', 'Stories'],
+  Facebook: ['Posts', 'Stories', 'Videos'],
+  LinkedIn: ['Posts', 'Carousels'],
+};
 
 const initialCampaign = {
-  title: 'Luxury Skincare Launch',
-  start_date: '2026-07-01',
-  end_date: '2026-07-07',
-  brief: 'Premium skincare for busy founders. Elegant, concise, confident.',
-  sales_percentage: 50,
-  image_percentage: 25,
+  title: '',
+  start_date: '',
+  end_date: '',
+  brief: '',
   channel_name: 'Instagram',
-  post_count: 1,
-  carousel_count: 1,
-  reel_count: 1,
-  stories_count: 1,
+  post_count: 0,
+  carousel_count: 0,
+  reel_count: 0,
+  stories_count: 0,
+  image_percentage: 70,
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
+  const headers = options.rawBody ? options.headers || {} : { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const { rawBody, ...fetchOptions } = options;
+  const response = await fetch(path, { headers, ...fetchOptions });
   if (response.status === 204) return null;
   const data = await response.json();
-  if (!response.ok) throw new Error(JSON.stringify(data));
+  if (!response.ok) throw new Error(data.detail || JSON.stringify(data));
   return data;
 }
 
-function toNumber(value) {
-  return Number(value || 0);
-}
+const toNumber = (value) => Number(value || 0);
+const formatLabels = { post_count: 'Posts', carousel_count: 'Carousels', reel_count: 'Reels', stories_count: 'Stories' };
 
 export default function App() {
   const [form, setForm] = useState(initialCampaign);
   const [campaigns, setCampaigns] = useState([]);
   const [activeCampaignId, setActiveCampaignId] = useState('');
   const [campaignDetails, setCampaignDetails] = useState(null);
-  const [output, setOutput] = useState('Ready.');
-  const [feedbackByEntry, setFeedbackByEntry] = useState({});
+  const [documents, setDocuments] = useState([]);
+  const [notice, setNotice] = useState('Додайте базу знань, заповніть параметри та створіть кампанію.');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const show = (data) => setOutput(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+  const salesPercentage = 100 - toNumber(form.image_percentage);
+  const selectedFormats = useMemo(() => CHANNEL_FORMATS[form.channel_name] || CHANNEL_FORMATS.Instagram, [form.channel_name]);
+
+  const run = async (task) => {
+    try { await task(); } catch (error) { setNotice(`Помилка: ${error.message}`); }
+  };
+
+  const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   const refreshCampaigns = async (selectedId = activeCampaignId) => {
     const data = await api('/campaigns');
     setCampaigns(data);
     if (selectedId) setActiveCampaignId(String(selectedId));
     if (!selectedId && data[0]) setActiveCampaignId(String(data[0].id));
-    show(data);
   };
+
+  const refreshDocuments = async () => setDocuments(await api('/knowledge-documents'));
 
   const loadCampaign = async (id = activeCampaignId) => {
     if (!id) return;
-    const data = await api(`/campaigns/${id}`);
-    setCampaignDetails(data);
-    setFeedbackByEntry(Object.fromEntries((data.entries || []).map((entry) => [entry.id, 'make it more premium, less text'])));
-    show(data);
+    setCampaignDetails(await api(`/campaigns/${id}`));
   };
 
-  const run = async (task) => {
+  const uploadDocument = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const body = await file.arrayBuffer();
+    await api(`/knowledge-documents?filename=${encodeURIComponent(file.name)}`, { method: 'POST', body, rawBody: true, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+    setNotice(`Файл "${file.name}" додано до бази знань.`);
+    await refreshDocuments();
+    event.target.value = '';
+  };
+
+  const createAndGenerateCampaign = async () => {
+    setIsGenerating(true);
     try {
-      await task();
-    } catch (error) {
-      show(`Error: ${error.message}`);
-    }
+      const payload = {
+        title: form.title,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        brief: form.brief,
+        sales_percentage: salesPercentage,
+        image_percentage: toNumber(form.image_percentage),
+        channels: [{
+          channel_name: form.channel_name,
+          post_count: toNumber(form.post_count),
+          carousel_count: toNumber(form.carousel_count),
+          reel_count: toNumber(form.reel_count),
+          stories_count: toNumber(form.stories_count),
+        }],
+      };
+      const campaign = await api('/campaigns', { method: 'POST', body: JSON.stringify(payload) });
+      setActiveCampaignId(String(campaign.id));
+      await api(`/campaigns/${campaign.id}/generate-plan`, { method: 'POST' });
+      await refreshCampaigns(campaign.id);
+      await loadCampaign(campaign.id);
+      setNotice('AI згенерував контент-план. Перегляньте одиниці контенту нижче.');
+    } finally { setIsGenerating(false); }
   };
-
-  const updateField = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
-  };
-
-  const createCampaign = async () => {
-    const payload = {
-      title: form.title,
-      start_date: form.start_date,
-      end_date: form.end_date,
-      brief: form.brief,
-      sales_percentage: toNumber(form.sales_percentage),
-      image_percentage: toNumber(form.image_percentage),
-      channels: [{
-        channel_name: form.channel_name,
-        post_count: toNumber(form.post_count),
-        carousel_count: toNumber(form.carousel_count),
-        reel_count: toNumber(form.reel_count),
-        stories_count: toNumber(form.stories_count),
-      }],
-    };
-    const campaign = await api('/campaigns', { method: 'POST', body: JSON.stringify(payload) });
-    setActiveCampaignId(String(campaign.id));
-    show(campaign);
-    await refreshCampaigns(campaign.id);
-    await loadCampaign(campaign.id);
-  };
-
-  const generatePlan = async () => {
-    if (!activeCampaignId) return show('Create or select a campaign first.');
-    const entries = await api(`/campaigns/${activeCampaignId}/generate-plan`, { method: 'POST' });
-    show(entries);
-    await loadCampaign(activeCampaignId);
-    await refreshCampaigns(activeCampaignId);
-  };
-
-  const entryAction = async (entryId, action) => {
-    let result;
-    if (action === 'generate') result = await api(`/content-entries/${entryId}/generate`, { method: 'POST' });
-    if (action === 'approve') result = await api(`/content-entries/${entryId}/approve`, { method: 'POST' });
-    if (action === 'reject') result = await api(`/content-entries/${entryId}/reject`, { method: 'POST' });
-    if (action === 'delete') result = await api(`/content-entries/${entryId}`, { method: 'DELETE' });
-    if (action === 'regenerate') {
-      result = await api(`/content-entries/${entryId}/regenerate`, {
-        method: 'POST',
-        body: JSON.stringify({ feedback: feedbackByEntry[entryId] || '' }),
-      });
-    }
-    show(result || `${action} completed`);
-    await loadCampaign(activeCampaignId);
-  };
-
-  useEffect(() => {
-    run(() => refreshCampaigns());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const entries = campaignDetails?.entries || [];
 
+  useEffect(() => { run(async () => { await refreshCampaigns(); await refreshDocuments(); }); }, []);
+
   return (
-    <main>
-      <h1>AI Content OS — Basic React UI</h1>
-      <p className="muted">Мінімальний React інтерфейс для перевірки workflow: Campaign → Plan → Generate → Review.</p>
+    <main className="app-shell">
+      <header className="hero">
+        <p className="eyebrow">AI Content Planner</p>
+        <h1>Мінімалістичний генератор кампаній для маркетолога</h1>
+        <p>Створіть кампанію, підключіть файли з бази знань і отримайте розклад контенту по днях через OpenRouter модель <strong>openai/gpt-4.1-mini</strong>.</p>
+      </header>
 
-      <section>
-        <h2>1. Create Campaign</h2>
-        <label>Title <input value={form.title} onChange={(event) => updateField('title', event.target.value)} /></label>
-        <div className="row">
-          <label>Start date <input type="date" value={form.start_date} onChange={(event) => updateField('start_date', event.target.value)} /></label>
-          <label>End date <input type="date" value={form.end_date} onChange={(event) => updateField('end_date', event.target.value)} /></label>
+      <section className="panel grid-two">
+        <div>
+          <p className="eyebrow">Сторінка 1</p>
+          <h2>Нова кампанія</h2>
+          <label>Назва кампанії<input placeholder="Наприклад: Launch FW 2026" value={form.title} onChange={(event) => updateField('title', event.target.value)} /></label>
+          <label>Короткий опис / промт для моделі<textarea rows="5" placeholder="Опишіть продукт, ЦА, tone of voice, обмеження та ціль кампанії" value={form.brief} onChange={(event) => updateField('brief', event.target.value)} /></label>
+          <div className="row"><label>Період від<input type="date" value={form.start_date} onChange={(event) => updateField('start_date', event.target.value)} /></label><label>Період до<input type="date" value={form.end_date} onChange={(event) => updateField('end_date', event.target.value)} /></label></div>
+          <label>Канал<select value={form.channel_name} onChange={(event) => updateField('channel_name', event.target.value)}>{Object.keys(CHANNEL_FORMATS).map((channel) => <option key={channel}>{channel}</option>)}</select></label>
+          <div className="format-help"><strong>Доступні формати:</strong> {selectedFormats.join(', ')}</div>
+          <div className="format-grid">{Object.entries(formatLabels).map(([field, label]) => <label key={field}>{label}<input type="number" min="0" value={form[field]} onChange={(event) => updateField(field, event.target.value)} /></label>)}</div>
+          <label>Баланс контенту: {form.image_percentage}% імідж / {salesPercentage}% продаж<input type="range" min="0" max="100" value={form.image_percentage} onChange={(event) => updateField('image_percentage', event.target.value)} /></label>
+          <button className="primary" disabled={isGenerating} onClick={() => run(createAndGenerateCampaign)}>{isGenerating ? 'Генеруємо через AI…' : 'Створити кампанію'}</button>
         </div>
-        <label>Brief <textarea rows="4" value={form.brief} onChange={(event) => updateField('brief', event.target.value)} /></label>
-        <div className="row">
-          <label>Sales % <input type="number" min="0" max="100" value={form.sales_percentage} onChange={(event) => updateField('sales_percentage', event.target.value)} /></label>
-          <label>Image % <input type="number" min="0" max="100" value={form.image_percentage} onChange={(event) => updateField('image_percentage', event.target.value)} /></label>
-        </div>
-        <h3>Channel volume</h3>
-        <label>Channel name <input value={form.channel_name} onChange={(event) => updateField('channel_name', event.target.value)} /></label>
-        <div className="row">
-          <label>Posts <input type="number" min="0" value={form.post_count} onChange={(event) => updateField('post_count', event.target.value)} /></label>
-          <label>Carousels <input type="number" min="0" value={form.carousel_count} onChange={(event) => updateField('carousel_count', event.target.value)} /></label>
-          <label>Reels <input type="number" min="0" value={form.reel_count} onChange={(event) => updateField('reel_count', event.target.value)} /></label>
-          <label>Stories <input type="number" min="0" value={form.stories_count} onChange={(event) => updateField('stories_count', event.target.value)} /></label>
-        </div>
-        <button onClick={() => run(createCampaign)}>Create campaign</button>
-        <button onClick={() => run(() => refreshCampaigns())}>Refresh campaigns</button>
+        <aside className="knowledge-card">
+          <p className="eyebrow">База знань</p>
+          <h2>Файли для контексту</h2>
+          <p>Завантажені матеріали автоматично додаються до промту генерації кампанії.</p>
+          <input type="file" onChange={(event) => run(() => uploadDocument(event))} accept=".txt,.md,.csv,.json,.html,.xml,.pdf,.doc,.docx" />
+          <div className="doc-list">{documents.length ? documents.map((document) => <div key={document.id}>#{document.id} {document.filename}</div>) : <span>Файлів ще немає.</span>}</div>
+        </aside>
       </section>
 
-      <section>
-        <h2>2. Campaigns</h2>
-        <label>Active campaign
-          <select value={activeCampaignId} onChange={(event) => setActiveCampaignId(event.target.value)}>
-            <option value="">No campaign selected</option>
-            {campaigns.map((campaign) => (
-              <option key={campaign.id} value={campaign.id}>#{campaign.id} — {campaign.title} ({campaign.status})</option>
-            ))}
-          </select>
-        </label>
-        <button onClick={() => run(() => loadCampaign())}>Load selected campaign</button>
-        <button onClick={() => run(generatePlan)}>Generate plan</button>
-        {campaignDetails && <pre>{JSON.stringify(campaignDetails.campaign, null, 2)}</pre>}
-      </section>
-
-      <section>
-        <h2>3. Content Entries</h2>
-        <p className="muted">Generate пише текст тільки для конкретного entry. Planning не генерує post_text.</p>
-        {!entries.length && <p>No entries yet. Generate a plan first.</p>}
-        {!!entries.length && (
-          <table>
-            <thead>
-              <tr><th>ID</th><th>Date</th><th>Format</th><th>Goal</th><th>Plan</th><th>Status</th><th>Post text</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id}>
-                  <td>#{entry.id}</td>
-                  <td>{entry.publish_date}</td>
-                  <td>{entry.format}</td>
-                  <td>{entry.goal}</td>
-                  <td><strong>{entry.topic}</strong><br />{entry.short_description}<br /><em>{entry.angle}</em></td>
-                  <td>{entry.status}</td>
-                  <td><pre>{entry.post_text || 'No generated text yet.'}</pre></td>
-                  <td>
-                    <button onClick={() => run(() => entryAction(entry.id, 'generate'))}>Generate</button>
-                    <button onClick={() => run(() => entryAction(entry.id, 'approve'))}>Approve</button>
-                    <button onClick={() => run(() => entryAction(entry.id, 'reject'))}>Reject</button>
-                    <button onClick={() => run(() => entryAction(entry.id, 'delete'))}>Delete</button>
-                    <label>Feedback
-                      <textarea
-                        rows="2"
-                        value={feedbackByEntry[entry.id] || ''}
-                        onChange={(event) => setFeedbackByEntry((current) => ({ ...current, [entry.id]: event.target.value }))}
-                      />
-                    </label>
-                    <button onClick={() => run(() => entryAction(entry.id, 'regenerate'))}>Regenerate</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      <section>
-        <h2>Raw API response</h2>
-        <pre>{output}</pre>
+      <section className="panel">
+        <div className="section-head"><div><p className="eyebrow">Review</p><h2>Згенерований контент-план</h2></div><label>Кампанія<select value={activeCampaignId} onChange={(event) => setActiveCampaignId(event.target.value)}><option value="">Оберіть кампанію</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>#{campaign.id} — {campaign.title} ({campaign.status})</option>)}</select></label><button onClick={() => run(() => loadCampaign())}>Відкрити</button></div>
+        <p className="notice">{notice}</p>
+        {!entries.length && <p className="empty">Після генерації тут зʼявиться календар із темою, ціллю, описом і готовим контентом.</p>}
+        <div className="cards">{entries.map((entry) => <article className="content-card" key={entry.id}><div className="card-meta"><span>{entry.publish_date}</span><span>{entry.format}</span><span>{entry.goal}</span></div><h3>{entry.topic}</h3><p>{entry.short_description}</p><p className="angle">{entry.angle}</p><pre>{entry.post_text}</pre></article>)}</div>
       </section>
     </main>
   );

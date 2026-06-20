@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Dict, Iterable, List
 
-from .models import Campaign, CampaignChannel, ContentEntry
+from .models import Campaign, CampaignChannel, ContentEntry, KnowledgeDocument
 
 
 class NotFoundError(KeyError):
@@ -20,6 +20,8 @@ class InMemoryRepository:
         self._campaign_seq = 1
         self._channel_seq = 1
         self._entry_seq = 1
+        self._documents: Dict[int, KnowledgeDocument] = {}
+        self._document_seq = 1
 
     def create_campaign(self, campaign: Campaign, channels: Iterable[CampaignChannel]) -> Campaign:
         campaign = replace(campaign, id=self._campaign_seq)
@@ -87,3 +89,18 @@ class InMemoryRepository:
     def delete_entry(self, entry_id: int) -> None:
         self.get_entry(entry_id)
         del self._entries[entry_id]
+
+
+    def create_document(self, document: KnowledgeDocument) -> KnowledgeDocument:
+        document = replace(document, id=self._document_seq)
+        self._document_seq += 1
+        self._documents[document.id] = document
+        return document
+
+    def list_documents(self) -> List[KnowledgeDocument]:
+        return list(self._documents.values())
+
+    def delete_document(self, document_id: int) -> None:
+        if document_id not in self._documents:
+            raise NotFoundError(f"Knowledge document {document_id} not found")
+        del self._documents[document_id]
