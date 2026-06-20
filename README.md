@@ -48,10 +48,27 @@ Generates copy for one planned entry and moves it to `generated`.
 
 ## Run locally
 
-Install and run the backend:
+Install backend dependencies and create your local environment file:
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env
+```
+
+Edit `.env` and set your OpenRouter values:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_MODEL=openai/gpt-4.1-mini
+OPENROUTER_SITE_URL=http://localhost:8000
+OPENROUTER_APP_NAME=AI Content Planner
+```
+
+`OPENROUTER_API_KEY` is required for AI generation. `OPENROUTER_MODEL` is optional and defaults to `openai/gpt-4.1-mini` when omitted. The backend automatically loads `.env` at startup, so you do not need to export these variables manually.
+
+Run the backend:
+
+```bash
 uvicorn app.main:app --reload
 ```
 

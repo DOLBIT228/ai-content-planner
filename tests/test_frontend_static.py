@@ -13,8 +13,11 @@ class FrontendReactTest(unittest.TestCase):
         self.assertIn("База знань", app)
         self.assertIn("openai/gpt-4.1-mini", app)
         self.assertIn("/knowledge-documents", app)
+        self.assertIn("validationMessage", app)
+        self.assertIn("response.text()", app)
         self.assertIn('"react"', package)
         self.assertIn("proxy", vite)
+        self.assertIn("/knowledge-documents", vite)
 
 
 if __name__ == "__main__":

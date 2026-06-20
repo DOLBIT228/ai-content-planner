@@ -7,6 +7,7 @@ export default defineConfig({
     proxy: {
       '/campaigns': 'http://127.0.0.1:8000',
       '/content-entries': 'http://127.0.0.1:8000',
+      '/knowledge-documents': 'http://127.0.0.1:8000',
     },
   },
 });

@@ -18,8 +18,9 @@ input:focus, textarea:focus, select:focus { border-color: #0a0a0a; box-shadow: 0
 input[type="range"] { padding: 0; accent-color: #0a0a0a; }
 button { border: 1px solid #0a0a0a; border-radius: 999px; background: #fff; color: #0a0a0a; cursor: pointer; font-weight: 800; padding: 12px 18px; }
 button.primary, button:hover { background: #0a0a0a; color: #fff; }
-button:disabled { opacity: .5; cursor: wait; }
-.format-help, .notice { border-radius: 16px; background: #f7f7f7; color: #444; margin-top: 14px; padding: 14px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.format-help, .notice, .validation-message { border-radius: 16px; background: #f7f7f7; color: #444; margin-top: 14px; padding: 14px; }
+.validation-message { background: #fff4f4; color: #9f1239; }
 .knowledge-card { border-left: 1px solid #eee; padding-left: 28px; }
 .doc-list { display: grid; gap: 8px; margin-top: 16px; color: #555; }
 .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
